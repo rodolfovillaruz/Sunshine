@@ -44,6 +44,9 @@ jobs:
 
   build-docker:
     name: Docker
+    # skipped on forks: publishes to Docker Hub/GHCR and updates the Docker Hub
+    # description unconditionally on push to master, which requires org secrets
+    if: startsWith(github.repository, 'LizardByte/')
     needs: release-setup
     permissions:
       contents: read
@@ -80,14 +83,14 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci-homebrew.yml
     with:
-      git_username: ${{ vars.GH_BOT_NAME }}
+      git_username: ${{ vars.GH_BOT_NAME || github.repository_owner }}
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_tag: ${{ needs.release-setup.outputs.release_tag }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-      GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+      GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL || format('{0}@users.noreply.github.com', github.repository_owner) }}
 
   build-macos:
     name: macOS
@@ -96,7 +99,9 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci-macos.yml
     with:
-      publish_release: ${{ needs.release-setup.outputs.publish_release }}
+      # codesigning/notarization is only attempted on the upstream org, since it
+      # requires a paid Apple Developer certificate; forks get unsigned builds
+      publish_release: ${{ needs.release-setup.outputs.publish_release == 'true' && startsWith(github.repository, 'LizardByte/') }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
     secrets:
@@ -283,14 +288,14 @@ jobs:
 
   release:
     name: Release
-    if:
+    # publish on the upstream org, or on this fork (unsigned/unpublished builds only)
+    if: >-
       needs.release-setup.outputs.publish_release == 'true' &&
-      startsWith(github.repository, 'LizardByte/')
+      (startsWith(github.repository, 'LizardByte/') || github.repository == 'rodolfovillaruz/Sunshine')
     needs:
       - release-setup
       - build-archlinux
       - build-alpine
-      - build-docker
       - build-freebsd
       - build-homebrew
       - build-linux
