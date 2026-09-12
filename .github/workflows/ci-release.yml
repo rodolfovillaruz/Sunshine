@@ -28,6 +28,7 @@ jobs:
 
   copr:
     name: Copr
+    if: startsWith(github.repository, 'LizardByte/')
     permissions:
       contents: write  # needed to update releases
     uses: ./.github/workflows/ci-copr.yml
