@@ -42,29 +42,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  build-docker:
-    name: Docker
-    # skipped on forks: publishes to Docker Hub/GHCR and updates the Docker Hub
-    # description unconditionally on push to master, which requires org secrets
-    if: startsWith(github.repository, 'LizardByte/')
-    needs: release-setup
-    permissions:
-      contents: read
-      packages: write
-    uses: LizardByte/.github/.github/workflows/__call-docker.yml@master
-    with:
-      docker_hub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-      gh_bot_name: ${{ vars.GH_BOT_NAME }}
-      maximize_build_space: true
-      publish_release: ${{ needs.release-setup.outputs.publish_release }}
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_tag: ${{ needs.release-setup.outputs.release_tag }}
-      release_version: ${{ needs.release-setup.outputs.release_version }}
-    secrets:
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Docker publishing (Docker Hub/GHCR) is upstream-only (org secrets required);
+  # removed here rather than left as a permanently-skipped job on this fork.
 
   build-freebsd:
     name: FreeBSD
@@ -144,18 +123,8 @@ jobs:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
 
-  build-linux-copr:
-    name: Linux Copr
-    if: github.event_name != 'push'  # releases are handled directly in ci-release.yml
-    needs: release-setup
-    permissions:
-      contents: write  # needed to update releases
-    uses: ./.github/workflows/ci-copr.yml
-    secrets:
-      COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
-      COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
-      COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
-      VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+  # Copr publishing is upstream-only (org secrets required); removed here
+  # rather than left as a permanently-skipped job on this fork.
 
   build-linux-flatpak:
     name: Linux Flatpak
@@ -200,91 +169,8 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  coverage:
-    name: Coverage-${{ matrix.name }}
-    if: >-
-      always() &&
-      !cancelled() &&
-      startsWith(github.repository, 'LizardByte/')
-    needs:
-      - build-freebsd
-      - build-linux
-      - build-archlinux
-      - build-alpine
-      - build-linux-flatpak
-      - build-macos
-      - build-homebrew
-      - build-windows
-      - test-powershell
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: FreeBSD-amd64
-            coverage: true
-          - name: Linux-AppImage-aarch64
-            coverage: true
-          - name: Linux-AppImage-x86_64
-            coverage: true
-          - name: Archlinux
-            coverage: true
-          - name: Alpine-x86_64
-            coverage: true
-          - name: Alpine-aarch64
-            coverage: true
-          - name: macOS-arm64
-            coverage: true
-          - name: macOS-x86_64
-            coverage: true
-          - name: Homebrew-macos-15
-            coverage: true
-            coverage_file: coverage.lcov
-          - name: Homebrew-macos-26
-            coverage: true
-            coverage_file: coverage.lcov
-          - name: Homebrew-ubuntu-24.04
-            coverage: true
-          - name: Windows-AMD64
-            coverage: true
-          - name: Windows-ARM64
-            coverage: true
-          - name: PowerShell
-            coverage: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-
-      - name: Download coverage artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: coverage-${{ matrix.name }}
-          path: _coverage
-
-      - name: Upload test coverage
-        if: matrix.coverage != false
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
-        with:
-          disable_search: true
-          fail_ci_if_error: true
-          files: ./_coverage/${{ matrix.coverage_file || 'coverage.xml' }}
-          report_type: coverage
-          flags: ${{ matrix.name }}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
-
-      - name: Upload test results
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
-        with:
-          disable_search: true
-          fail_ci_if_error: true
-          files: ./_coverage/tests/test_results.xml
-          report_type: test_results
-          flags: ${{ matrix.name }}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
+  # Codecov upload is upstream-only (org secrets required); removed here
+  # rather than left as a permanently-skipped job on this fork.
 
   release:
     name: Release
@@ -328,32 +214,5 @@ jobs:
           token: ${{ secrets.GH_BOT_TOKEN }}
           virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
 
-  release-homebrew-beta:
-    name: Release Homebrew Beta
-    if:
-      needs.release-setup.outputs.publish_release == 'true' &&
-      startsWith(github.repository, 'LizardByte/')
-    needs:
-      - release-setup
-      - build-homebrew
-      - release
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download homebrew artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: beta-Homebrew
-          path: homebrew
-
-      - name: Upload Homebrew Beta Formula
-        uses: LizardByte/actions/actions/release_homebrew@master  # action requires too many updates to pin
-        with:
-          actionlint_config: "---\n# empty config"
-          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
-          git_email: ${{ secrets.GH_BOT_EMAIL }}
-          git_username: ${{ vars.GH_BOT_NAME }}
-          publish: true
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          validate: false
+  # Homebrew Beta formula publishing is upstream-only (org secrets required);
+  # removed here rather than left as a permanently-skipped job on this fork.
