@@ -29,10 +29,6 @@ on:
 jobs:
   build_homebrew:
     name: ${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }}
-    # the non-release legs run brew's formula audit/livecheck, which queries this
-    # repo's GitHub releases and 404s until a first release exists here; skip
-    # that validation on forks and keep only the leg that builds the artifact
-    if: matrix.release == true || startsWith(github.repository, 'LizardByte/')
     permissions:
       contents: read
     runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
@@ -186,7 +182,10 @@ jobs:
       - run: echo "::add-matcher::.github/matchers/gcc-strip3.json"
       - name: Validate Homebrew Formula
         id: test
-        if: matrix.release != true
+        # this runs brew's audit/livecheck, which queries this repo's GitHub
+        # releases via the API and 404s until a first release exists here, so
+        # skip it on forks and keep only the leg that builds the artifact
+        if: matrix.release != true && startsWith(github.repository, 'LizardByte/')
         uses: LizardByte/actions/actions/release_homebrew@master  # action requires too many updates to pin
         with:
           actionlint_config: "---\n# empty config"
@@ -199,7 +198,7 @@ jobs:
       - run: echo "::remove-matcher owner=gcc-strip3::"
 
       - name: Run Homebrew tests
-        if: matrix.release != true
+        if: matrix.release != true && startsWith(github.repository, 'LizardByte/')
         env:
           ACTION_TESTPATH: ${{ steps.test.outputs.testpath }}
         run: |
@@ -264,6 +263,7 @@ jobs:
         if: >-
           always() &&
           matrix.release != true &&
+          startsWith(github.repository, 'LizardByte/') &&
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
