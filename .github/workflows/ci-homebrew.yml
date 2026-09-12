@@ -29,6 +29,10 @@ on:
 jobs:
   build_homebrew:
     name: ${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }}
+    # the non-release legs run brew's formula audit/livecheck, which queries this
+    # repo's GitHub releases and 404s until a first release exists here; skip
+    # that validation on forks and keep only the leg that builds the artifact
+    if: matrix.release == true || startsWith(github.repository, 'LizardByte/')
     permissions:
       contents: read
     runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
